@@ -14,6 +14,7 @@ interface GanttChartProps {
   flags: FlagRow[]
   flagOptions: FlagOptionRow[]
   taskFlagsByTaskId: Map<string, string[]>
+  isEditor: boolean
   onDateChange: (taskId: string, startDate: string, endDate: string) => void
   onProgressChange: (taskId: string, progress: number) => void
 }
@@ -31,6 +32,7 @@ export function GanttChart({
   flags,
   flagOptions,
   taskFlagsByTaskId,
+  isEditor,
   onDateChange,
   onProgressChange,
 }: GanttChartProps) {
@@ -74,6 +76,10 @@ export function GanttChart({
         // Dependencies are visual-only in v1 — dragging a task must never
         // shift the dates of tasks that depend on it.
         move_dependencies: false,
+        // Set once at construction time — a mid-session role change won't
+        // retroactively lock/unlock an already-mounted chart, which is fine
+        // since this app has no live role-switching UI.
+        readonly: !isEditor,
         on_date_change: (task, start, end) => {
           liveRef.current.onDateChange(task.id, toDateInput(start), toDateInput(end))
         },

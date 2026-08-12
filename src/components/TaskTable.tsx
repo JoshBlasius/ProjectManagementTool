@@ -17,24 +17,34 @@ interface TaskTableProps {
   flags: FlagRow[]
   flagOptions: FlagOptionRow[]
   taskFlagsByTaskId: Map<string, string[]>
+  isEditor: boolean
 }
 
-function EditableText({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+function EditableText({
+  value,
+  onCommit,
+  disabled,
+}: {
+  value: string
+  onCommit: (v: string) => void
+  disabled: boolean
+}) {
   const [draft, setDraft] = useState(value)
   return (
     <input
       value={draft}
+      disabled={disabled}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => {
         if (draft !== value && draft.trim()) onCommit(draft)
         else setDraft(value)
       }}
-      className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:bg-white focus:outline-none"
+      className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:bg-white focus:outline-none disabled:cursor-default disabled:hover:border-transparent"
     />
   )
 }
 
-export function TaskTable({ tasks, onUpdate, flags, flagOptions, taskFlagsByTaskId }: TaskTableProps) {
+export function TaskTable({ tasks, onUpdate, flags, flagOptions, taskFlagsByTaskId, isEditor }: TaskTableProps) {
   const { users } = useUsers()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('')
@@ -227,13 +237,18 @@ export function TaskTable({ tasks, onUpdate, flags, flagOptions, taskFlagsByTask
             {rows.map((task) => (
               <tr key={task.id} className="hover:bg-gray-50">
                 <td className="w-64 px-3 py-1.5">
-                  <EditableText value={task.name} onCommit={(name) => onUpdate(task.id, { name })} />
+                  <EditableText
+                    value={task.name}
+                    disabled={!isEditor}
+                    onCommit={(name) => onUpdate(task.id, { name })}
+                  />
                 </td>
                 <td className="px-3 py-1.5">
                   <select
                     value={task.status}
+                    disabled={!isEditor}
                     onChange={(e) => onUpdate(task.id, { status: e.target.value as TaskStatus })}
-                    className="rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none"
+                    className="rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none disabled:hover:border-transparent"
                   >
                     {STATUS_OPTIONS.map((s) => (
                       <option key={s} value={s}>
@@ -245,8 +260,9 @@ export function TaskTable({ tasks, onUpdate, flags, flagOptions, taskFlagsByTask
                 <td className="px-3 py-1.5">
                   <select
                     value={task.priority}
+                    disabled={!isEditor}
                     onChange={(e) => onUpdate(task.id, { priority: e.target.value as TaskPriority })}
-                    className="rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none"
+                    className="rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none disabled:hover:border-transparent"
                   >
                     {PRIORITY_OPTIONS.map((p) => (
                       <option key={p} value={p}>
@@ -258,8 +274,9 @@ export function TaskTable({ tasks, onUpdate, flags, flagOptions, taskFlagsByTask
                 <td className="px-3 py-1.5">
                   <select
                     value={task.owner_id ?? ''}
+                    disabled={!isEditor}
                     onChange={(e) => onUpdate(task.id, { owner_id: e.target.value || null })}
-                    className="rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none"
+                    className="rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none disabled:hover:border-transparent"
                   >
                     <option value="">Unassigned</option>
                     {users.map((u) => (
@@ -273,16 +290,18 @@ export function TaskTable({ tasks, onUpdate, flags, flagOptions, taskFlagsByTask
                   <input
                     type="date"
                     value={task.start_date ?? ''}
+                    disabled={!isEditor}
                     onChange={(e) => onUpdate(task.id, { start_date: e.target.value || null })}
-                    className="rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none"
+                    className="rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none disabled:hover:border-transparent"
                   />
                 </td>
                 <td className="px-3 py-1.5">
                   <input
                     type="date"
                     value={task.end_date ?? ''}
+                    disabled={!isEditor}
                     onChange={(e) => onUpdate(task.id, { end_date: e.target.value || null })}
-                    className="rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none"
+                    className="rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none disabled:hover:border-transparent"
                   />
                 </td>
                 <td className="w-24 px-3 py-1.5">
@@ -291,8 +310,9 @@ export function TaskTable({ tasks, onUpdate, flags, flagOptions, taskFlagsByTask
                     min={0}
                     max={100}
                     value={task.percent_complete}
+                    disabled={!isEditor}
                     onChange={(e) => onUpdate(task.id, { percent_complete: Number(e.target.value) })}
-                    className="w-16 rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none"
+                    className="w-16 rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none disabled:hover:border-transparent"
                   />
                 </td>
                 <td className="w-40 px-3 py-1.5">

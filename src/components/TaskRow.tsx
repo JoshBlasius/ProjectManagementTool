@@ -17,6 +17,7 @@ interface TaskRowProps {
   depth: number
   flagOptions: FlagOptionRow[]
   taskFlagsByTaskId: Map<string, string[]>
+  isEditor: boolean
   onAddSubtask: (parentId: string) => void
   onEdit: (task: TaskNode) => void
   onDelete: (task: TaskNode) => void
@@ -27,6 +28,7 @@ export function TaskRow({
   depth,
   flagOptions,
   taskFlagsByTaskId,
+  isEditor,
   onAddSubtask,
   onEdit,
   onDelete,
@@ -75,21 +77,23 @@ export function TaskRow({
 
         <span className="w-12 shrink-0 text-right text-xs text-gray-500">{node.percent_complete}%</span>
 
-        <div className="flex shrink-0 gap-2 opacity-0 group-hover:opacity-100">
-          <button
-            type="button"
-            onClick={() => onAddSubtask(node.id)}
-            className="text-xs text-indigo-600 hover:text-indigo-500"
-          >
-            + Subtask
-          </button>
-          <button type="button" onClick={() => onEdit(node)} className="text-xs text-gray-600 hover:text-gray-900">
-            Edit
-          </button>
-          <button type="button" onClick={() => onDelete(node)} className="text-xs text-red-600 hover:text-red-500">
-            Delete
-          </button>
-        </div>
+        {isEditor && (
+          <div className="flex shrink-0 gap-2 opacity-0 group-hover:opacity-100">
+            <button
+              type="button"
+              onClick={() => onAddSubtask(node.id)}
+              className="text-xs text-indigo-600 hover:text-indigo-500"
+            >
+              + Subtask
+            </button>
+            <button type="button" onClick={() => onEdit(node)} className="text-xs text-gray-600 hover:text-gray-900">
+              Edit
+            </button>
+            <button type="button" onClick={() => onDelete(node)} className="text-xs text-red-600 hover:text-red-500">
+              Delete
+            </button>
+          </div>
+        )}
       </div>
 
       {expanded &&
@@ -100,6 +104,7 @@ export function TaskRow({
             depth={depth + 1}
             flagOptions={flagOptions}
             taskFlagsByTaskId={taskFlagsByTaskId}
+            isEditor={isEditor}
             onAddSubtask={onAddSubtask}
             onEdit={onEdit}
             onDelete={onDelete}

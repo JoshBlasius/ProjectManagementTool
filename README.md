@@ -9,11 +9,11 @@ cascading date recalculation).
 
 ## Status
 
-Phase 1–4 complete: auth, projects list, nested task CRUD, a sortable/filterable table
-view with inline editing, a Gantt view (drag to adjust dates, dependency lines, no
-cascading recalculation), a dependency editor, and a custom flags system (flag/option
-management, multi-select tagging per task, colored pills in the Tree/Table/Gantt views,
-and filtering by flag value). Phase 5 (permissions/RLS) is next.
+All five v1 phases are complete: auth, projects list, nested task CRUD, a
+sortable/filterable table view with inline editing, a Gantt view (drag to adjust dates,
+dependency lines, no cascading recalculation), a dependency editor, a custom flags
+system (management UI, multi-select tagging, colored pills, filtering), and Row Level
+Security with a "Manage access" UI for granting project-level editor/viewer roles.
 
 ## Setup
 
@@ -30,12 +30,21 @@ in order:
 
 1. `supabase/migrations/0001_init.sql` — creates all tables (users, projects,
    project_permissions, tasks, dependencies, flags, flag_options, task_flags).
-2. `supabase/seed/seed.sql` — optional sample data (a couple of projects with nested
+2. `supabase/migrations/0002_rls.sql` — enables Row Level Security and the
+   admin/editor/viewer policies described below.
+3. `supabase/seed/seed.sql` — optional sample data (a couple of projects with nested
    tasks, dependencies, and flags) so the app has something to show immediately.
 
-Row Level Security is **not** enabled by the initial migration — it's added in a later
-migration as part of Phase 5 (Permissions). Until then, treat the anon key as
-effectively full-access to this schema.
+**After signing up in the app for the first time**, promote yourself to admin so you can
+see and manage everything, including the seed data (which has no owner, so RLS hides it
+from everyone except admins by default):
+
+```sql
+update public.users set role = 'admin' where email = 'you@example.com';
+```
+
+From there, use the in-app "Manage access" panel on any project to grant teammates
+editor or viewer access — see [Permissions](#permissions) below for how that works.
 
 ### 3. Configure environment variables
 
@@ -125,6 +134,43 @@ One security note: that popup content is injected via `innerHTML` (frappe-gantt'
 API), so task names and flag labels/colors are HTML-escaped before interpolation
 (`src/lib/escapeHtml.ts`) — otherwise a task named e.g. `<img src=x onerror=...>` would
 be a stored XSS vector.
+
+## Permissions
+
+Two layers, matching the spec:
+
+- **Global role** (`users.role`): `admin` bypasses every project-level check —
+  full read/write on all projects, tasks, flags, dependencies, and membership.
+  `member` (the default for everyone who signs up) has no access to anything until
+  granted it per-project.
+- **Project role** (`project_permissions.role`): `editor` can create/edit/delete tasks,
+  dependencies, flags, and flag options within that project, and can manage who else has
+  access. `viewer` can read everything in that project but every write is rejected —
+  both by the UI (edit controls are hidden/disabled — see `useProjectRole.ts`) and,
+  more importantly, by the database itself via RLS policies in `0002_rls.sql`, so a
+  viewer can't route around the UI by calling the API directly.
+
+Creating a project automatically grants you `editor` on it (`handle_new_project` trigger
+in `0002_rls.sql`) — otherwise you'd immediately lose access to a project you just
+created. From there, any editor can open **Manage access** on the project page to add
+other people and set their role, or change/revoke it. "Invite" here means granting
+access to an existing account, not sending an email invitation — creating new accounts
+requires Supabase's service-role key, which must never be shipped to a client-side app,
+so someone has to sign up on their own first before you can add them.
+
+Flags are the one partial exception to "per-project": a flag with `project_id = null`
+is global and readable by every signed-in user (by design — it's meant to be shared
+reference data like a company-wide "Risk" taxonomy). Writing to a global flag requires
+being an editor on *some* project, not a specific one, since there's no single project
+to check against.
+
+I verified the RLS policies directly against a local Postgres instance (stubbing
+`auth.users`/`auth.uid()` to match Supabase's model) rather than trusting the SQL by
+inspection alone: created a project as an editor, confirmed a granted viewer can read
+tasks/flags/dependencies but gets `new row violates row-level security policy` on every
+write attempt, confirmed a non-member sees zero rows for anything project-scoped while
+still seeing global flags, and confirmed admin bypasses all of it. All four roles
+(admin/editor/viewer/outsider) checked out exactly as designed.
 
 ## Data model
 

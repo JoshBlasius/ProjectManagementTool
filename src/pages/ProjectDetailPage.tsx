@@ -5,6 +5,8 @@ import { useDependencies } from '../hooks/useDependencies'
 import { useFlags } from '../hooks/useFlags'
 import { useTaskFlags } from '../hooks/useTaskFlags'
 import { useAuth } from '../hooks/useAuth'
+import { useProjectRole } from '../hooks/useProjectRole'
+import { useProjectMembers } from '../hooks/useProjectMembers'
 import { buildTaskTree, type TaskNode } from '../types/domain'
 import { AppHeader } from '../components/AppHeader'
 import { TaskRow } from '../components/TaskRow'
@@ -12,6 +14,7 @@ import { TaskFormModal } from '../components/TaskFormModal'
 import { TaskTable } from '../components/TaskTable'
 import { GanttChart } from '../components/GanttChart'
 import { FlagManager } from '../components/FlagManager'
+import { ProjectAccessManager } from '../components/ProjectAccessManager'
 
 type FormState = { mode: 'create'; parentTaskId: string | null } | { mode: 'edit'; task: TaskNode }
 type ViewMode = 'tree' | 'table' | 'gantt'
@@ -30,10 +33,13 @@ export function ProjectDetailPage() {
   const { dependencies, addDependency, removeDependency } = useDependencies(taskIds)
   const { flags, options: flagOptions, createFlag, createOption, updateOption, reorderOption } = useFlags(projectId!)
   const { taskFlags, addTaskFlag, removeTaskFlag } = useTaskFlags(taskIds)
+  const { isEditor, hasAccess, loading: roleLoading } = useProjectRole(projectId!)
+  const { members, allUsers, addMember, updateMemberRole, removeMember } = useProjectMembers(projectId!)
   const [formState, setFormState] = useState<FormState | null>(null)
   const [pendingDelete, setPendingDelete] = useState<TaskNode | null>(null)
   const [view, setView] = useState<ViewMode>('tree')
   const [showFlagManager, setShowFlagManager] = useState(false)
+  const [showAccessManager, setShowAccessManager] = useState(false)
 
   const tree = useMemo(() => buildTaskTree(tasks), [tasks])
 
@@ -71,42 +77,58 @@ export function ProjectDetailPage() {
 
         <div className="mt-2 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Tasks</h1>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowFlagManager(true)}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              Manage flags
-            </button>
-            <button
-              onClick={() => setFormState({ mode: 'create', parentTaskId: null })}
-              className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500"
-            >
-              New task
-            </button>
-          </div>
+          {isEditor && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowAccessManager(true)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Manage access
+              </button>
+              <button
+                onClick={() => setShowFlagManager(true)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Manage flags
+              </button>
+              <button
+                onClick={() => setFormState({ mode: 'create', parentTaskId: null })}
+                className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+              >
+                New task
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="mt-4 flex gap-1 border-b border-gray-200">
-          {VIEW_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setView(tab.id)}
-              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
-                view === tab.id
-                  ? 'border-indigo-600 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {!roleLoading && !hasAccess && (
+          <p className="mt-6 rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
+            You don't have access to this project. Ask a project editor to add you.
+          </p>
+        )}
+
+        {(roleLoading || hasAccess) && (
+          <div className="mt-4 flex gap-1 border-b border-gray-200">
+            {VIEW_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setView(tab.id)}
+                className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+                  view === tab.id
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {loading && <p className="mt-6 text-sm text-gray-500">Loading tasks…</p>}
         {error && <p className="mt-6 text-sm text-red-600">{error}</p>}
 
-        {!loading && !error && (
+        {!loading && !error && (roleLoading || hasAccess) && (
           <div className="mt-4">
             {view === 'tree' &&
               (tree.length === 0 ? (
@@ -122,6 +144,7 @@ export function ProjectDetailPage() {
                       depth={0}
                       flagOptions={flagOptions}
                       taskFlagsByTaskId={taskFlagsByTaskId}
+                      isEditor={isEditor}
                       onAddSubtask={(parentId) => setFormState({ mode: 'create', parentTaskId: parentId })}
                       onEdit={(task) => setFormState({ mode: 'edit', task })}
                       onDelete={(task) => setPendingDelete(task)}
@@ -137,6 +160,7 @@ export function ProjectDetailPage() {
                 flags={flags}
                 flagOptions={flagOptions}
                 taskFlagsByTaskId={taskFlagsByTaskId}
+                isEditor={isEditor}
               />
             )}
 
@@ -147,6 +171,7 @@ export function ProjectDetailPage() {
                 flags={flags}
                 flagOptions={flagOptions}
                 taskFlagsByTaskId={taskFlagsByTaskId}
+                isEditor={isEditor}
                 onDateChange={(taskId, start_date, end_date) => updateTask(taskId, { start_date, end_date })}
                 onProgressChange={(taskId, percent_complete) => updateTask(taskId, { percent_complete })}
               />
@@ -197,6 +222,17 @@ export function ProjectDetailPage() {
           onCreateOption={createOption}
           onUpdateOption={updateOption}
           onReorderOption={reorderOption}
+        />
+      )}
+
+      {showAccessManager && (
+        <ProjectAccessManager
+          members={members}
+          allUsers={allUsers}
+          onClose={() => setShowAccessManager(false)}
+          onAdd={addMember}
+          onUpdateRole={updateMemberRole}
+          onRemove={removeMember}
         />
       )}
 
