@@ -12,7 +12,7 @@ export type DependencyType =
   | 'finish_to_finish'
   | 'start_to_finish'
 
-export interface UserRow {
+export type UserRow = {
   id: string
   name: string
   email: string
@@ -20,7 +20,7 @@ export interface UserRow {
   created_at: string
 }
 
-export interface ProjectRow {
+export type ProjectRow = {
   id: string
   name: string
   description: string | null
@@ -28,7 +28,7 @@ export interface ProjectRow {
   created_at: string
 }
 
-export interface ProjectPermissionRow {
+export type ProjectPermissionRow = {
   id: string
   project_id: string
   user_id: string
@@ -36,7 +36,7 @@ export interface ProjectPermissionRow {
   created_at: string
 }
 
-export interface TaskRow {
+export type TaskRow = {
   id: string
   project_id: string
   parent_task_id: string | null
@@ -52,7 +52,7 @@ export interface TaskRow {
   updated_at: string
 }
 
-export interface DependencyRow {
+export type DependencyRow = {
   id: string
   task_id: string
   depends_on_task_id: string
@@ -60,7 +60,7 @@ export interface DependencyRow {
   created_at: string
 }
 
-export interface FlagRow {
+export type FlagRow = {
   id: string
   project_id: string | null
   name: string
@@ -69,7 +69,7 @@ export interface FlagRow {
   created_at: string
 }
 
-export interface FlagOptionRow {
+export type FlagOptionRow = {
   id: string
   flag_id: string
   label: string
@@ -79,7 +79,7 @@ export interface FlagOptionRow {
   created_at: string
 }
 
-export interface TaskFlagRow {
+export type TaskFlagRow = {
   task_id: string
   flag_option_id: string
   created_at: string
@@ -89,6 +89,7 @@ type TableDef<Row, Insert, Update> = {
   Row: Row
   Insert: Insert
   Update: Update
+  Relationships: []
 }
 
 export interface Database {
@@ -139,5 +140,7 @@ export interface Database {
         Partial<TaskFlagRow>
       >
     }
+    Views: Record<string, never>
+    Functions: Record<string, never>
   }
 }
