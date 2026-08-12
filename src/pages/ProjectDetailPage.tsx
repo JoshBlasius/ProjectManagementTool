@@ -2,12 +2,16 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTasks, type NewTaskInput } from '../hooks/useTasks'
 import { useDependencies } from '../hooks/useDependencies'
+import { useFlags } from '../hooks/useFlags'
+import { useTaskFlags } from '../hooks/useTaskFlags'
+import { useAuth } from '../hooks/useAuth'
 import { buildTaskTree, type TaskNode } from '../types/domain'
 import { AppHeader } from '../components/AppHeader'
 import { TaskRow } from '../components/TaskRow'
 import { TaskFormModal } from '../components/TaskFormModal'
 import { TaskTable } from '../components/TaskTable'
 import { GanttChart } from '../components/GanttChart'
+import { FlagManager } from '../components/FlagManager'
 
 type FormState = { mode: 'create'; parentTaskId: string | null } | { mode: 'edit'; task: TaskNode }
 type ViewMode = 'tree' | 'table' | 'gantt'
@@ -20,14 +24,28 @@ const VIEW_TABS: { id: ViewMode; label: string }[] = [
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
+  const { session } = useAuth()
   const { tasks, loading, error, createTask, updateTask, deleteTask } = useTasks(projectId!)
   const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks])
   const { dependencies, addDependency, removeDependency } = useDependencies(taskIds)
+  const { flags, options: flagOptions, createFlag, createOption, updateOption, reorderOption } = useFlags(projectId!)
+  const { taskFlags, addTaskFlag, removeTaskFlag } = useTaskFlags(taskIds)
   const [formState, setFormState] = useState<FormState | null>(null)
   const [pendingDelete, setPendingDelete] = useState<TaskNode | null>(null)
   const [view, setView] = useState<ViewMode>('tree')
+  const [showFlagManager, setShowFlagManager] = useState(false)
 
   const tree = useMemo(() => buildTaskTree(tasks), [tasks])
+
+  const taskFlagsByTaskId = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const tf of taskFlags) {
+      const list = map.get(tf.task_id) ?? []
+      list.push(tf.flag_option_id)
+      map.set(tf.task_id, list)
+    }
+    return map
+  }, [taskFlags])
 
   async function handleSubmit(input: NewTaskInput) {
     if (formState?.mode === 'edit') {
@@ -53,12 +71,20 @@ export function ProjectDetailPage() {
 
         <div className="mt-2 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">Tasks</h1>
-          <button
-            onClick={() => setFormState({ mode: 'create', parentTaskId: null })}
-            className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500"
-          >
-            New task
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowFlagManager(true)}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            >
+              Manage flags
+            </button>
+            <button
+              onClick={() => setFormState({ mode: 'create', parentTaskId: null })}
+              className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+            >
+              New task
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 flex gap-1 border-b border-gray-200">
@@ -94,6 +120,8 @@ export function ProjectDetailPage() {
                       key={node.id}
                       node={node}
                       depth={0}
+                      flagOptions={flagOptions}
+                      taskFlagsByTaskId={taskFlagsByTaskId}
                       onAddSubtask={(parentId) => setFormState({ mode: 'create', parentTaskId: parentId })}
                       onEdit={(task) => setFormState({ mode: 'edit', task })}
                       onDelete={(task) => setPendingDelete(task)}
@@ -102,12 +130,23 @@ export function ProjectDetailPage() {
                 </div>
               ))}
 
-            {view === 'table' && <TaskTable tasks={tasks} onUpdate={updateTask} />}
+            {view === 'table' && (
+              <TaskTable
+                tasks={tasks}
+                onUpdate={updateTask}
+                flags={flags}
+                flagOptions={flagOptions}
+                taskFlagsByTaskId={taskFlagsByTaskId}
+              />
+            )}
 
             {view === 'gantt' && (
               <GanttChart
                 tasks={tasks}
                 dependencies={dependencies}
+                flags={flags}
+                flagOptions={flagOptions}
+                taskFlagsByTaskId={taskFlagsByTaskId}
                 onDateChange={(taskId, start_date, end_date) => updateTask(taskId, { start_date, end_date })}
                 onProgressChange={(taskId, percent_complete) => updateTask(taskId, { percent_complete })}
               />
@@ -133,6 +172,31 @@ export function ProjectDetailPage() {
                 }
               : undefined
           }
+          flagProps={
+            formState.mode === 'edit'
+              ? {
+                  flags,
+                  options: flagOptions,
+                  selectedOptionIds: taskFlagsByTaskId.get(formState.task.id) ?? [],
+                  onToggleFlag: (flagOptionId, nextSelected) =>
+                    nextSelected
+                      ? addTaskFlag(formState.task.id, flagOptionId)
+                      : removeTaskFlag(formState.task.id, flagOptionId),
+                }
+              : undefined
+          }
+        />
+      )}
+
+      {showFlagManager && (
+        <FlagManager
+          flags={flags}
+          options={flagOptions}
+          onClose={() => setShowFlagManager(false)}
+          onCreateFlag={(name, color, projectScoped) => createFlag(name, color, projectScoped, session!.user.id)}
+          onCreateOption={createOption}
+          onUpdateOption={updateOption}
+          onReorderOption={reorderOption}
         />
       )}
 

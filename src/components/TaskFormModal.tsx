@@ -1,9 +1,18 @@
 import { useState, type FormEvent } from 'react'
 import { Modal } from './Modal'
 import { DependencyEditor } from './DependencyEditor'
+import { TaskFlagPicker } from './TaskFlagPicker'
 import { useUsers } from '../hooks/useUsers'
 import { priorityLabel, statusLabel } from '../lib/taskLabels'
-import type { DependencyRow, DependencyType, TaskPriority, TaskRow, TaskStatus } from '../types/database'
+import type {
+  DependencyRow,
+  DependencyType,
+  FlagOptionRow,
+  FlagRow,
+  TaskPriority,
+  TaskRow,
+  TaskStatus,
+} from '../types/database'
 import type { NewTaskInput } from '../hooks/useTasks'
 
 const STATUS_OPTIONS: TaskStatus[] = ['not_started', 'in_progress', 'blocked', 'done']
@@ -21,6 +30,12 @@ interface TaskFormModalProps {
     onAddDependency: (dependsOnTaskId: string, type: DependencyType) => Promise<{ error: string | null }>
     onRemoveDependency: (id: string) => Promise<{ error: string | null }>
   }
+  flagProps?: {
+    flags: FlagRow[]
+    options: FlagOptionRow[]
+    selectedOptionIds: string[]
+    onToggleFlag: (flagOptionId: string, nextSelected: boolean) => void
+  }
 }
 
 export function TaskFormModal({
@@ -30,6 +45,7 @@ export function TaskFormModal({
   onClose,
   onSubmit,
   dependencyProps,
+  flagProps,
 }: TaskFormModalProps) {
   const { users } = useUsers()
   const [name, setName] = useState(initial?.name ?? '')
@@ -191,6 +207,18 @@ export function TaskFormModal({
             />
           </div>
         </div>
+
+        {initial && flagProps && (
+          <div>
+            <p className="mb-1 block text-sm font-medium text-gray-700">Flags</p>
+            <TaskFlagPicker
+              flags={flagProps.flags}
+              options={flagProps.options}
+              selectedOptionIds={flagProps.selectedOptionIds}
+              onToggle={flagProps.onToggleFlag}
+            />
+          </div>
+        )}
 
         {initial && dependencyProps && (
           <div>

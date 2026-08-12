@@ -2,7 +2,8 @@ import { useCallback, useMemo, useState } from 'react'
 import type { NewTaskInput } from '../hooks/useTasks'
 import { priorityLabel, statusLabel } from '../lib/taskLabels'
 import { useUsers } from '../hooks/useUsers'
-import type { TaskPriority, TaskRow, TaskStatus } from '../types/database'
+import { FlagPills } from './FlagPills'
+import type { FlagOptionRow, FlagRow, TaskPriority, TaskRow, TaskStatus } from '../types/database'
 
 type SortKey = 'name' | 'status' | 'priority' | 'owner' | 'start_date' | 'end_date' | 'percent_complete'
 type SortDir = 'asc' | 'desc'
@@ -13,6 +14,9 @@ const PRIORITY_OPTIONS: TaskPriority[] = ['low', 'medium', 'high', 'urgent']
 interface TaskTableProps {
   tasks: TaskRow[]
   onUpdate: (id: string, patch: Partial<NewTaskInput>) => Promise<{ error: string | null }>
+  flags: FlagRow[]
+  flagOptions: FlagOptionRow[]
+  taskFlagsByTaskId: Map<string, string[]>
 }
 
 function EditableText({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
@@ -30,12 +34,13 @@ function EditableText({ value, onCommit }: { value: string; onCommit: (v: string
   )
 }
 
-export function TaskTable({ tasks, onUpdate }: TaskTableProps) {
+export function TaskTable({ tasks, onUpdate, flags, flagOptions, taskFlagsByTaskId }: TaskTableProps) {
   const { users } = useUsers()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('')
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | ''>('')
   const [ownerFilter, setOwnerFilter] = useState<string>('')
+  const [flagFilter, setFlagFilter] = useState<string[]>([])
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('asc')
 
@@ -53,6 +58,9 @@ export function TaskTable({ tasks, onUpdate }: TaskTableProps) {
     if (statusFilter) result = result.filter((t) => t.status === statusFilter)
     if (priorityFilter) result = result.filter((t) => t.priority === priorityFilter)
     if (ownerFilter) result = result.filter((t) => (t.owner_id ?? '') === ownerFilter)
+    if (flagFilter.length > 0) {
+      result = result.filter((t) => (taskFlagsByTaskId.get(t.id) ?? []).some((id) => flagFilter.includes(id)))
+    }
 
     if (sortKey) {
       result = [...result].sort((a, b) => {
@@ -77,7 +85,7 @@ export function TaskTable({ tasks, onUpdate }: TaskTableProps) {
       })
     }
     return result
-  }, [tasks, search, statusFilter, priorityFilter, ownerFilter, sortKey, sortDir, ownerName])
+  }, [tasks, search, statusFilter, priorityFilter, ownerFilter, flagFilter, sortKey, sortDir, ownerName, taskFlagsByTaskId])
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -146,7 +154,29 @@ export function TaskTable({ tasks, onUpdate }: TaskTableProps) {
             </option>
           ))}
         </select>
-        {(search || statusFilter || priorityFilter || ownerFilter) && (
+        {flags.length > 0 && (
+          <select
+            multiple
+            value={flagFilter}
+            onChange={(e) => setFlagFilter(Array.from(e.target.selectedOptions, (o) => o.value))}
+            size={1}
+            className="h-[34px] w-40 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:h-auto focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            title="Ctrl/Cmd-click to select multiple flag values"
+          >
+            {flags.map((flag) => (
+              <optgroup key={flag.id} label={flag.name}>
+                {flagOptions
+                  .filter((o) => o.flag_id === flag.id && !o.archived)
+                  .map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+              </optgroup>
+            ))}
+          </select>
+        )}
+        {(search || statusFilter || priorityFilter || ownerFilter || flagFilter.length > 0) && (
           <button
             type="button"
             onClick={() => {
@@ -154,6 +184,7 @@ export function TaskTable({ tasks, onUpdate }: TaskTableProps) {
               setStatusFilter('')
               setPriorityFilter('')
               setOwnerFilter('')
+              setFlagFilter([])
             }}
             className="text-sm text-indigo-600 hover:text-indigo-500"
           >
@@ -186,6 +217,9 @@ export function TaskTable({ tasks, onUpdate }: TaskTableProps) {
               </th>
               <th className="px-3 py-2">
                 <SortHeader label="% Complete" sortableKey="percent_complete" />
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-gray-500">
+                Flags
               </th>
             </tr>
           </thead>
@@ -261,11 +295,14 @@ export function TaskTable({ tasks, onUpdate }: TaskTableProps) {
                     className="w-16 rounded border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-gray-200 focus:border-indigo-400 focus:outline-none"
                   />
                 </td>
+                <td className="w-40 px-3 py-1.5">
+                  <FlagPills optionIds={taskFlagsByTaskId.get(task.id) ?? []} options={flagOptions} size="xs" />
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-sm text-gray-500">
+                <td colSpan={8} className="px-3 py-6 text-center text-sm text-gray-500">
                   No tasks match the current filters.
                 </td>
               </tr>

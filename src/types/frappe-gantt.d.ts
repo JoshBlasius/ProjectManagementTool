@@ -12,6 +12,13 @@ declare module 'frappe-gantt' {
     description?: string
   }
 
+  export interface GanttPopupContext {
+    task: GanttTask
+    set_title: (html: string) => void
+    set_subtitle: (html: string) => void
+    set_details: (html: string) => void
+  }
+
   export interface GanttOptions {
     view_mode?: 'Day' | 'Week' | 'Month' | 'Year'
     view_mode_select?: boolean
@@ -22,6 +29,7 @@ declare module 'frappe-gantt' {
     readonly_progress?: boolean
     readonly_dates?: boolean
     scroll_to?: 'today' | 'start' | 'end'
+    popup?: (ctx: GanttPopupContext) => void | false
     on_click?: (task: GanttTask) => void
     on_date_change?: (task: GanttTask, start: Date, end: Date) => void
     on_progress_change?: (task: GanttTask, progress: number) => void

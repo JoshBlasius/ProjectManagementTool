@@ -9,10 +9,11 @@ cascading date recalculation).
 
 ## Status
 
-Phase 1–3 complete: auth, projects list, nested task CRUD, a sortable/filterable table
+Phase 1–4 complete: auth, projects list, nested task CRUD, a sortable/filterable table
 view with inline editing, a Gantt view (drag to adjust dates, dependency lines, no
-cascading recalculation), and a dependency editor (add/remove predecessor links, shown
-per-task in the edit modal). Phase 4 (custom flags) is next.
+cascading recalculation), a dependency editor, and a custom flags system (flag/option
+management, multi-select tagging per task, colored pills in the Tree/Table/Gantt views,
+and filtering by flag value). Phase 5 (permissions/RLS) is next.
 
 ## Setup
 
@@ -102,6 +103,28 @@ under their parents. This is a deliberate v1 simplification: preserving hierarch
 supporting arbitrary sort/filter combinations (e.g. "show only Done subtasks, keep their
 parents visible for context") adds real complexity for a first pass. The Tree tab still
 shows the full nested hierarchy for browsing.
+
+## Flags
+
+Flags are custom multi-select metadata for reporting later (v1 only captures them —
+no reports yet, per spec). A flag with `project_id = null` is global and shows up in
+every project's flag picker; a project-scoped flag only shows up in that project.
+"Manage flags" on the project page opens flag/option CRUD (create flags, add/archive/
+reorder options); the task edit modal has a per-task multi-select picker grouped by
+flag. Pills render in the Tree and Table views directly, and in the Table/Gantt views
+there's a flag-value filter (OR match: a task matches if it has *any* selected option).
+
+The Gantt view is the one place pills aren't literally drawn on the bar — frappe-gantt
+renders bars as plain SVG with no HTML overlay support, so baking colored pills into the
+bar itself would mean hand-rolling SVG/foreignObject positioning against a library that
+doesn't expose hooks for it. Instead, pills render in the bar's hover/click popup
+(`GanttChart.tsx`'s `popup` option), which was the practical trade-off for v1 — flagged
+here since "on Gantt bars" in the spec could read as literally on-bar.
+
+One security note: that popup content is injected via `innerHTML` (frappe-gantt's own
+API), so task names and flag labels/colors are HTML-escaped before interpolation
+(`src/lib/escapeHtml.ts`) — otherwise a task named e.g. `<img src=x onerror=...>` would
+be a stored XSS vector.
 
 ## Data model
 

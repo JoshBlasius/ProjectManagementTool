@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { TaskNode } from '../types/domain'
 import { priorityLabel, statusLabel } from '../lib/taskLabels'
-import type { TaskStatus } from '../types/database'
+import { FlagPills } from './FlagPills'
+import type { FlagOptionRow, TaskStatus } from '../types/database'
 import { useUsers } from '../hooks/useUsers'
 
 const STATUS_STYLES: Record<TaskStatus, string> = {
@@ -14,16 +15,27 @@ const STATUS_STYLES: Record<TaskStatus, string> = {
 interface TaskRowProps {
   node: TaskNode
   depth: number
+  flagOptions: FlagOptionRow[]
+  taskFlagsByTaskId: Map<string, string[]>
   onAddSubtask: (parentId: string) => void
   onEdit: (task: TaskNode) => void
   onDelete: (task: TaskNode) => void
 }
 
-export function TaskRow({ node, depth, onAddSubtask, onEdit, onDelete }: TaskRowProps) {
+export function TaskRow({
+  node,
+  depth,
+  flagOptions,
+  taskFlagsByTaskId,
+  onAddSubtask,
+  onEdit,
+  onDelete,
+}: TaskRowProps) {
   const [expanded, setExpanded] = useState(true)
   const { users } = useUsers()
   const owner = users.find((u) => u.id === node.owner_id)
   const hasChildren = node.children.length > 0
+  const flagOptionIds = taskFlagsByTaskId.get(node.id) ?? []
 
   return (
     <div>
@@ -40,7 +52,14 @@ export function TaskRow({ node, depth, onAddSubtask, onEdit, onDelete }: TaskRow
           {expanded ? '▾' : '▸'}
         </button>
 
-        <span className="flex-1 truncate text-sm text-gray-900">{node.name}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm text-gray-900">{node.name}</span>
+          {flagOptionIds.length > 0 && (
+            <span className="mt-0.5 block">
+              <FlagPills optionIds={flagOptionIds} options={flagOptions} size="xs" />
+            </span>
+          )}
+        </span>
 
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[node.status]}`}>
           {statusLabel(node.status)}
@@ -79,6 +98,8 @@ export function TaskRow({ node, depth, onAddSubtask, onEdit, onDelete }: TaskRow
             key={child.id}
             node={child}
             depth={depth + 1}
+            flagOptions={flagOptions}
+            taskFlagsByTaskId={taskFlagsByTaskId}
             onAddSubtask={onAddSubtask}
             onEdit={onEdit}
             onDelete={onDelete}

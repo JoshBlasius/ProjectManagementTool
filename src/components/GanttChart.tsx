@@ -1,14 +1,19 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Gantt, { type GanttTask } from 'frappe-gantt'
 // frappe-gantt's package.json `exports` only exposes the "." entry point,
 // so its dist CSS can't be imported by path — it's vendored locally instead
 // (see src/styles/frappe-gantt.css for details, and re-sync it on upgrades).
 import '../styles/frappe-gantt.css'
-import type { DependencyRow, TaskRow } from '../types/database'
+import { contrastTextColor } from '../lib/color'
+import { escapeHtml } from '../lib/escapeHtml'
+import type { DependencyRow, FlagOptionRow, FlagRow, TaskRow } from '../types/database'
 
 interface GanttChartProps {
   tasks: TaskRow[]
   dependencies: DependencyRow[]
+  flags: FlagRow[]
+  flagOptions: FlagOptionRow[]
+  taskFlagsByTaskId: Map<string, string[]>
   onDateChange: (taskId: string, startDate: string, endDate: string) => void
   onProgressChange: (taskId: string, progress: number) => void
 }
@@ -20,17 +25,32 @@ function toDateInput(d: Date) {
   return `${y}-${m}-${day}`
 }
 
-export function GanttChart({ tasks, dependencies, onDateChange, onProgressChange }: GanttChartProps) {
+export function GanttChart({
+  tasks,
+  dependencies,
+  flags,
+  flagOptions,
+  taskFlagsByTaskId,
+  onDateChange,
+  onProgressChange,
+}: GanttChartProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const ganttRef = useRef<Gantt | null>(null)
-  // Keep the latest callbacks in a ref so the effect below doesn't need to
-  // re-create the Gantt instance (and lose its internal state) just because
-  // a parent re-render produced new function identities.
-  const callbacksRef = useRef({ onDateChange, onProgressChange })
-  callbacksRef.current = { onDateChange, onProgressChange }
+  const [flagFilter, setFlagFilter] = useState<string[]>([])
 
-  const scheduledTasks = tasks.filter((t) => t.start_date && t.end_date)
-  const unscheduledCount = tasks.length - scheduledTasks.length
+  // Keep the latest callbacks/data in a ref so the effect below doesn't need
+  // to re-create the Gantt instance (and lose its internal state) just
+  // because a parent re-render produced new function/array identities.
+  const liveRef = useRef({ onDateChange, onProgressChange, flagOptions, taskFlagsByTaskId })
+  liveRef.current = { onDateChange, onProgressChange, flagOptions, taskFlagsByTaskId }
+
+  const filteredTasks =
+    flagFilter.length === 0
+      ? tasks
+      : tasks.filter((t) => (taskFlagsByTaskId.get(t.id) ?? []).some((id) => flagFilter.includes(id)))
+
+  const scheduledTasks = filteredTasks.filter((t) => t.start_date && t.end_date)
+  const unscheduledCount = filteredTasks.length - scheduledTasks.length
 
   const ganttTasks: GanttTask[] = scheduledTasks.map((t) => ({
     id: t.id,
@@ -55,10 +75,31 @@ export function GanttChart({ tasks, dependencies, onDateChange, onProgressChange
         // shift the dates of tasks that depend on it.
         move_dependencies: false,
         on_date_change: (task, start, end) => {
-          callbacksRef.current.onDateChange(task.id, toDateInput(start), toDateInput(end))
+          liveRef.current.onDateChange(task.id, toDateInput(start), toDateInput(end))
         },
         on_progress_change: (task, progress) => {
-          callbacksRef.current.onProgressChange(task.id, Math.round(progress))
+          liveRef.current.onProgressChange(task.id, Math.round(progress))
+        },
+        popup: (ctx) => {
+          const { flagOptions: liveOptions, taskFlagsByTaskId: liveMap } = liveRef.current
+          ctx.set_title(escapeHtml(ctx.task.name))
+          ctx.set_subtitle('')
+          const optionIds = liveMap.get(ctx.task.id) ?? []
+          const pills = optionIds
+            .map((id) => liveOptions.find((o) => o.id === id))
+            .filter((o): o is FlagOptionRow => !!o)
+            .map(
+              (o) =>
+                `<span style="display:inline-block;background:${escapeHtml(o.color)};color:${contrastTextColor(
+                  o.color,
+                )};border-radius:9999px;padding:1px 8px;font-size:11px;margin:2px 4px 2px 0;">${escapeHtml(
+                  o.label,
+                )}</span>`,
+            )
+            .join('')
+          ctx.set_details(
+            `Progress: ${Math.round(ctx.task.progress)}%${pills ? `<div style="margin-top:6px">${pills}</div>` : ''}`,
+          )
         },
       })
     } else {
@@ -73,6 +114,40 @@ export function GanttChart({ tasks, dependencies, onDateChange, onProgressChange
 
   return (
     <div>
+      {flags.length > 0 && (
+        <div className="mb-2 flex items-center gap-2">
+          <select
+            multiple
+            value={flagFilter}
+            onChange={(e) => setFlagFilter(Array.from(e.target.selectedOptions, (o) => o.value))}
+            size={1}
+            className="h-[34px] w-40 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:h-auto focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            title="Ctrl/Cmd-click to select multiple flag values"
+          >
+            {flags.map((flag) => (
+              <optgroup key={flag.id} label={flag.name}>
+                {flagOptions
+                  .filter((o) => o.flag_id === flag.id && !o.archived)
+                  .map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+              </optgroup>
+            ))}
+          </select>
+          {flagFilter.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setFlagFilter([])}
+              className="text-sm text-indigo-600 hover:text-indigo-500"
+            >
+              Clear filter
+            </button>
+          )}
+        </div>
+      )}
+
       {unscheduledCount > 0 && (
         <p className="mb-2 text-sm text-gray-500">
           {unscheduledCount} task{unscheduledCount === 1 ? '' : 's'} hidden — missing a start or end date.
