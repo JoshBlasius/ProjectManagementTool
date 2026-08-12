@@ -22,7 +22,7 @@ export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { tasks, loading, error, createTask, updateTask, deleteTask } = useTasks(projectId!)
   const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks])
-  const { dependencies } = useDependencies(taskIds)
+  const { dependencies, addDependency, removeDependency } = useDependencies(taskIds)
   const [formState, setFormState] = useState<FormState | null>(null)
   const [pendingDelete, setPendingDelete] = useState<TaskNode | null>(null)
   const [view, setView] = useState<ViewMode>('tree')
@@ -123,6 +123,16 @@ export function ProjectDetailPage() {
           initial={formState.mode === 'edit' ? formState.task : undefined}
           onClose={() => setFormState(null)}
           onSubmit={handleSubmit}
+          dependencyProps={
+            formState.mode === 'edit'
+              ? {
+                  allTasks: tasks,
+                  dependencies,
+                  onAddDependency: (dependsOnTaskId, type) => addDependency(formState.task.id, dependsOnTaskId, type),
+                  onRemoveDependency: removeDependency,
+                }
+              : undefined
+          }
         />
       )}
 

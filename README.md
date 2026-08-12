@@ -9,9 +9,10 @@ cascading date recalculation).
 
 ## Status
 
-Phase 1 and 2 complete: auth, projects list, nested task CRUD, a sortable/filterable
-table view with inline editing, and a Gantt view (drag to adjust dates, dependency
-lines, no cascading recalculation). Phase 3 (dependency UI) is next.
+Phase 1–3 complete: auth, projects list, nested task CRUD, a sortable/filterable table
+view with inline editing, a Gantt view (drag to adjust dates, dependency lines, no
+cascading recalculation), and a dependency editor (add/remove predecessor links, shown
+per-task in the edit modal). Phase 4 (custom flags) is next.
 
 ## Setup
 

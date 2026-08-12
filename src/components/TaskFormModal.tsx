@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { Modal } from './Modal'
+import { DependencyEditor } from './DependencyEditor'
 import { useUsers } from '../hooks/useUsers'
 import { priorityLabel, statusLabel } from '../lib/taskLabels'
-import type { TaskPriority, TaskRow, TaskStatus } from '../types/database'
+import type { DependencyRow, DependencyType, TaskPriority, TaskRow, TaskStatus } from '../types/database'
 import type { NewTaskInput } from '../hooks/useTasks'
 
 const STATUS_OPTIONS: TaskStatus[] = ['not_started', 'in_progress', 'blocked', 'done']
@@ -14,9 +15,22 @@ interface TaskFormModalProps {
   initial?: TaskRow
   onClose: () => void
   onSubmit: (input: NewTaskInput) => Promise<{ error: string | null }>
+  dependencyProps?: {
+    allTasks: TaskRow[]
+    dependencies: DependencyRow[]
+    onAddDependency: (dependsOnTaskId: string, type: DependencyType) => Promise<{ error: string | null }>
+    onRemoveDependency: (id: string) => Promise<{ error: string | null }>
+  }
 }
 
-export function TaskFormModal({ title, parentTaskId, initial, onClose, onSubmit }: TaskFormModalProps) {
+export function TaskFormModal({
+  title,
+  parentTaskId,
+  initial,
+  onClose,
+  onSubmit,
+  dependencyProps,
+}: TaskFormModalProps) {
   const { users } = useUsers()
   const [name, setName] = useState(initial?.name ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
@@ -177,6 +191,19 @@ export function TaskFormModal({ title, parentTaskId, initial, onClose, onSubmit 
             />
           </div>
         </div>
+
+        {initial && dependencyProps && (
+          <div>
+            <p className="mb-1 block text-sm font-medium text-gray-700">Dependencies</p>
+            <DependencyEditor
+              task={initial}
+              allTasks={dependencyProps.allTasks}
+              dependencies={dependencyProps.dependencies}
+              onAdd={dependencyProps.onAddDependency}
+              onRemove={dependencyProps.onRemoveDependency}
+            />
+          </div>
+        )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
