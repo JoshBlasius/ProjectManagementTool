@@ -1,18 +1,31 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTasks, type NewTaskInput } from '../hooks/useTasks'
+import { useDependencies } from '../hooks/useDependencies'
 import { buildTaskTree, type TaskNode } from '../types/domain'
 import { AppHeader } from '../components/AppHeader'
 import { TaskRow } from '../components/TaskRow'
 import { TaskFormModal } from '../components/TaskFormModal'
+import { TaskTable } from '../components/TaskTable'
+import { GanttChart } from '../components/GanttChart'
 
 type FormState = { mode: 'create'; parentTaskId: string | null } | { mode: 'edit'; task: TaskNode }
+type ViewMode = 'tree' | 'table' | 'gantt'
+
+const VIEW_TABS: { id: ViewMode; label: string }[] = [
+  { id: 'tree', label: 'Tree' },
+  { id: 'table', label: 'Table' },
+  { id: 'gantt', label: 'Gantt' },
+]
 
 export function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const { tasks, loading, error, createTask, updateTask, deleteTask } = useTasks(projectId!)
+  const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks])
+  const { dependencies } = useDependencies(taskIds)
   const [formState, setFormState] = useState<FormState | null>(null)
   const [pendingDelete, setPendingDelete] = useState<TaskNode | null>(null)
+  const [view, setView] = useState<ViewMode>('tree')
 
   const tree = useMemo(() => buildTaskTree(tasks), [tasks])
 
@@ -48,24 +61,56 @@ export function ProjectDetailPage() {
           </button>
         </div>
 
+        <div className="mt-4 flex gap-1 border-b border-gray-200">
+          {VIEW_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setView(tab.id)}
+              className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px ${
+                view === tab.id
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         {loading && <p className="mt-6 text-sm text-gray-500">Loading tasks…</p>}
         {error && <p className="mt-6 text-sm text-red-600">{error}</p>}
 
         {!loading && !error && (
-          <div className="mt-6 rounded-lg border border-gray-200 bg-white">
-            {tree.length === 0 ? (
-              <p className="p-6 text-sm text-gray-500">No tasks yet. Create the first one above.</p>
-            ) : (
-              tree.map((node) => (
-                <TaskRow
-                  key={node.id}
-                  node={node}
-                  depth={0}
-                  onAddSubtask={(parentId) => setFormState({ mode: 'create', parentTaskId: parentId })}
-                  onEdit={(task) => setFormState({ mode: 'edit', task })}
-                  onDelete={(task) => setPendingDelete(task)}
-                />
-              ))
+          <div className="mt-4">
+            {view === 'tree' &&
+              (tree.length === 0 ? (
+                <p className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-500">
+                  No tasks yet. Create the first one above.
+                </p>
+              ) : (
+                <div className="rounded-lg border border-gray-200 bg-white">
+                  {tree.map((node) => (
+                    <TaskRow
+                      key={node.id}
+                      node={node}
+                      depth={0}
+                      onAddSubtask={(parentId) => setFormState({ mode: 'create', parentTaskId: parentId })}
+                      onEdit={(task) => setFormState({ mode: 'edit', task })}
+                      onDelete={(task) => setPendingDelete(task)}
+                    />
+                  ))}
+                </div>
+              ))}
+
+            {view === 'table' && <TaskTable tasks={tasks} onUpdate={updateTask} />}
+
+            {view === 'gantt' && (
+              <GanttChart
+                tasks={tasks}
+                dependencies={dependencies}
+                onDateChange={(taskId, start_date, end_date) => updateTask(taskId, { start_date, end_date })}
+                onProgressChange={(taskId, percent_complete) => updateTask(taskId, { percent_complete })}
+              />
             )}
           </div>
         )}
